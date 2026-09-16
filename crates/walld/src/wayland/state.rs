@@ -30,7 +30,7 @@ use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
 use wall_core::{OutputStatus, ScaleMode, WallpaperKind};
 
 use crate::media::{Frame, MediaSlot};
-use crate::wayland::present::{present_frame, ShmPool};
+use crate::wayland::present::{apply_viewport as apply_viewport_pub, present_frame, ShmPool};
 
 #[derive(Debug)]
 pub enum WaylandCmd {
@@ -87,6 +87,8 @@ pub struct AppData {
     status: Arc<Mutex<Vec<OutputStatus>>>,
     exit: Arc<AtomicBool>,
     qh: QueueHandle<AppData>,
+    /// Shared SHM pool so multi-monitor uploads the frame once.
+    shared_shm: Option<ShmPool>,
 }
 
 pub fn run_wayland(
@@ -120,6 +122,7 @@ pub fn run_wayland(
         status,
         exit: exit.clone(),
         qh: qh.clone(),
+        shared_shm: None,
     };
 
     // Initial roundtrip to learn outputs
@@ -151,7 +154,7 @@ pub fn run_wayland(
         }
 
         // Sleep briefly to avoid busy loop; video thread paces frames
-        std::thread::sleep(Duration::from_millis(2));
+        std::thread::sleep(Duration::from_millis(8));
         data.publish_status();
     }
 
@@ -214,42 +217,98 @@ impl AppData {
 
     fn present_all(&mut self, conn: &Connection) -> Result<()> {
         let names: Vec<String> = self.surfaces.keys().cloned().collect();
-        for name in names {
-            let (configured, width, height, mode, slot, viewport_exists) = {
-                let Some(surf) = self.surfaces.get(&name) else {
-                    continue;
-                };
-                (
-                    surf.configured,
-                    surf.width,
-                    surf.height,
-                    surf.mode,
-                    surf.slot.clone(),
-                    surf.viewport.is_some(),
-                )
+
+        // Gather outputs that share the same slot and have a new frame.
+        let mut batch: Vec<(String, u32, u32, wall_core::ScaleMode, MediaSlot, bool)> = Vec::new();
+        let mut shared_frame: Option<std::sync::Arc<crate::media::Frame>> = None;
+
+        for name in &names {
+            let Some(surf) = self.surfaces.get(name) else {
+                continue;
             };
-            if !configured || width == 0 || height == 0 {
+            if !surf.configured || surf.width == 0 || surf.height == 0 {
                 continue;
             }
-            let Some(slot) = slot else {
+            let Some(slot) = surf.slot.clone() else {
                 continue;
             };
+            batch.push((
+                name.clone(),
+                surf.width,
+                surf.height,
+                surf.mode,
+                slot,
+                surf.viewport.is_some(),
+            ));
+        }
 
-            let frame = {
-                let surf = self.surfaces.get_mut(&name).unwrap();
-                slot.frame_if_newer(&mut surf.last_frame_gen)
-            };
-            let Some(frame) = frame else {
-                continue;
-            };
-
-            let layer_surface = self.surfaces[&name].layer.wl_surface().clone();
-            let shm_proto = self.shm.wl_shm().clone();
-            let dmabuf = self.dmabuf.clone();
-            let qh = self.qh.clone();
-
+        // Advance gens and pick one frame (all outputs with same slot share it)
+        let mut to_present: Vec<(String, u32, u32, wall_core::ScaleMode, bool)> = Vec::new();
+        for (name, w, h, mode, slot, has_vp) in batch {
             let surf = self.surfaces.get_mut(&name).unwrap();
-            let viewport = if viewport_exists {
+            if let Some(frame) = slot.frame_if_newer(&mut surf.last_frame_gen) {
+                if shared_frame.is_none() {
+                    shared_frame = Some(frame);
+                }
+                to_present.push((name, w, h, mode, has_vp));
+            }
+        }
+
+        let Some(frame) = shared_frame else {
+            return Ok(());
+        };
+
+        // One SHM upload for all outputs that need this frame.
+        if let Frame::Shm {
+            width,
+            height,
+            stride,
+            pixels,
+        } = frame.as_ref()
+        {
+            let need = pixels.len();
+            if self.shared_shm.is_none() || self.shared_shm.as_ref().unwrap().size < need {
+                let shm_proto = self.shm.wl_shm().clone();
+                let qh = self.qh.clone();
+                self.shared_shm = Some(ShmPool::create(
+                    &shm_proto,
+                    &qh,
+                    need.next_multiple_of(4096),
+                )?);
+            }
+            let pool = self.shared_shm.as_mut().unwrap();
+            pool.write_xrgb(pixels)?;
+
+            let shm_proto = self.shm.wl_shm().clone();
+            let qh = self.qh.clone();
+            let _ = shm_proto; // pool already created
+            for (name, out_w, out_h, mode, has_vp) in to_present {
+                let layer_surface = self.surfaces[&name].layer.wl_surface().clone();
+                let surf = self.surfaces.get_mut(&name).unwrap();
+                let viewport = if has_vp {
+                    surf.viewport.as_ref()
+                } else {
+                    None
+                };
+                apply_viewport_pub(viewport, *width, *height, out_w, out_h, mode);
+                let buf = pool.create_buffer(&qh, *width as i32, *height as i32, *stride as i32);
+                layer_surface.attach(Some(&buf), 0, 0);
+                layer_surface.damage_buffer(0, 0, *width as i32, *height as i32);
+                layer_surface.commit();
+                buf.destroy();
+            }
+            let _ = conn.flush();
+            return Ok(());
+        }
+
+        // DMA-BUF / other: per-output present
+        let shm_proto = self.shm.wl_shm().clone();
+        let dmabuf = self.dmabuf.clone();
+        let qh = self.qh.clone();
+        for (name, out_w, out_h, mode, has_vp) in to_present {
+            let layer_surface = self.surfaces[&name].layer.wl_surface().clone();
+            let surf = self.surfaces.get_mut(&name).unwrap();
+            let viewport = if has_vp {
                 surf.viewport.as_ref()
             } else {
                 None
@@ -262,8 +321,8 @@ impl AppData {
                 dmabuf.as_ref(),
                 &qh,
                 frame.as_ref(),
-                width,
-                height,
+                out_w,
+                out_h,
                 mode,
                 &mut surf.pools,
             ) {

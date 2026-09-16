@@ -67,6 +67,7 @@ impl App {
         }
 
         let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
             .enable_all()
             .build()?;
         let app_ipc = app.clone();
@@ -165,6 +166,30 @@ impl App {
         }
 
         // One shared player/slot when ALL and same file — share slot across outputs
+        let (target_w, target_h) = {
+            let outs = self.wayland.outputs.lock().unwrap();
+            let mut mw = 0u32;
+            let mut mh = 0u32;
+            for o in outs.iter() {
+                // Prefer physical-ish size from status (already set from modes)
+                mw = mw.max(o.width.max(0) as u32);
+                mh = mh.max(o.height.max(0) as u32);
+            }
+            // Cap decode for wallpaper use — 1440p is plenty for most setups
+            const CAP_W: u32 = 2560;
+            const CAP_H: u32 = 1440;
+            if mw == 0 || mh == 0 {
+                (CAP_W, CAP_H)
+            } else {
+                // Keep aspect of the largest output, clamp to cap
+                let scale = (CAP_W as f32 / mw as f32).min(CAP_H as f32 / mh as f32).min(1.0);
+                (
+                    ((mw as f32 * scale) as u32).max(640) & !1,
+                    ((mh as f32 * scale) as u32).max(360) & !1,
+                )
+            }
+        };
+
         let slot = MediaSlot::default();
         let player = media::spawn_player(
             &path,
@@ -172,6 +197,8 @@ impl App {
             cfg.hwdec,
             cfg.efficiency_mode,
             max_fps,
+            target_w,
+            target_h,
             self.paused.clone(),
         )?;
 

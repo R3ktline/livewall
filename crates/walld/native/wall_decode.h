@@ -24,6 +24,7 @@ typedef struct WallDmabufFrame {
     WallDmabufPlane planes[4];
 } WallDmabufFrame;
 
+void wall_decoder_set_target_size(WallDecoder *d, int w, int h);
 WallDecoder *wall_decoder_open(const char *path, const char *vaapi_device, int want_hw, int efficiency, int force_rgb);
 void wall_decoder_free(WallDecoder *d);
 int wall_decoder_is_hw(const WallDecoder *d);

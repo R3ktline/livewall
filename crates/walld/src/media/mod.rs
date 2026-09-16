@@ -123,6 +123,8 @@ pub fn spawn_player(
     hwdec: HwDecPreference,
     efficiency_mode: bool,
     max_fps: u32,
+    target_w: u32,
+    target_h: u32,
     paused: Arc<AtomicBool>,
 ) -> Result<PlayerHandle> {
     let kind = WallpaperKind::from_path(path);
@@ -144,6 +146,8 @@ pub fn spawn_player(
                     hwdec,
                     efficiency_mode,
                     max_fps,
+                    target_w,
+                    target_h,
                     stop_c,
                     paused,
                 ),
@@ -209,6 +213,8 @@ fn run_video(
     hwdec: HwDecPreference,
     efficiency_mode: bool,
     max_fps: u32,
+    target_w: u32,
+    target_h: u32,
     stop: Arc<AtomicBool>,
     paused: Arc<AtomicBool>,
 ) -> Result<()> {
@@ -216,6 +222,8 @@ fn run_video(
         hwdec,
         efficiency_mode,
         max_fps,
+        target_w,
+        target_h,
     };
     let mut player = VideoPlayer::open(path, cfg)?;
     slot.set_decode_path(player.decode_path());

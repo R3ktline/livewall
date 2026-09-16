@@ -19,7 +19,7 @@ use super::state::AppData;
 pub struct ShmPool {
     _fd: OwnedFd,
     pool: WlShmPool,
-    size: usize,
+    pub size: usize,
     mmap: memmap2::MmapMut,
 }
 
@@ -109,7 +109,7 @@ pub fn present_frame(
     Ok(())
 }
 
-fn apply_viewport(
+pub fn apply_viewport(
     viewport: Option<&WpViewport>,
     src_w: u32,
     src_h: u32,

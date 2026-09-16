@@ -24,6 +24,8 @@ typedef struct WallDecoder {
     float fps;
     int hw_vaapi;
     int force_rgb;
+    int target_w;
+    int target_h;
     char warning[256];
 } WallDecoder;
 
@@ -127,6 +129,8 @@ WallDecoder *wall_decoder_open(const char *path, const char *vaapi_device, int w
     d->width = d->codec->width;
     d->height = d->codec->height;
     d->force_rgb = force_rgb ? 1 : 0;
+    d->target_w = 0;
+    d->target_h = 0;
     if (d->force_rgb && d->hw_vaapi) {
         snprintf(d->warning, sizeof(d->warning),
                  "hybrid GPU: VA-API decode + SHM present (HDMI/dGPU safe)");
@@ -148,6 +152,28 @@ int wall_decoder_is_hw(const WallDecoder *d) { return d && d->hw_vaapi; }
 float wall_decoder_fps(const WallDecoder *d) { return d ? d->fps : 0.0f; }
 int wall_decoder_width(const WallDecoder *d) { return d ? d->width : 0; }
 int wall_decoder_height(const WallDecoder *d) { return d ? d->height : 0; }
+
+void wall_decoder_set_target_size(WallDecoder *d, int w, int h) {
+    if (!d)
+        return;
+    if (w < 16)
+        w = 0;
+    if (h < 16)
+        h = 0;
+    /* Even dimensions for YUV-friendly scaling */
+    if (w > 0)
+        w &= ~1;
+    if (h > 0)
+        h &= ~1;
+    if (d->target_w != w || d->target_h != h) {
+        d->target_w = w;
+        d->target_h = h;
+        if (d->sws) {
+            sws_freeContext(d->sws);
+            d->sws = NULL;
+        }
+    }
+}
 const char *wall_decoder_warning(const WallDecoder *d) {
     return (d && d->warning[0]) ? d->warning : NULL;
 }
@@ -212,16 +238,24 @@ static int to_rgb(WallDecoder *d, AVFrame *src, WallRgbFrame *out) {
     }
 
     enum AVPixelFormat src_fmt = (enum AVPixelFormat)sw->format;
-    d->sws = sws_getCachedContext(d->sws, sw->width, sw->height, src_fmt, sw->width, sw->height,
-                                  AV_PIX_FMT_RGB24, SWS_BILINEAR, NULL, NULL, NULL);
+    int dst_w = sw->width;
+    int dst_h = sw->height;
+    if (d->target_w > 0 && d->target_h > 0) {
+        dst_w = d->target_w;
+        dst_h = d->target_h;
+    }
+
+    /* BGR0 = little-endian XRGB8888 for wl_shm */
+    d->sws = sws_getCachedContext(d->sws, sw->width, sw->height, src_fmt, dst_w, dst_h,
+                                  AV_PIX_FMT_BGR0, SWS_FAST_BILINEAR, NULL, NULL, NULL);
     if (!d->sws) {
         if (tmp)
             av_frame_free(&tmp);
         return -1;
     }
 
-    int stride = sw->width * 3;
-    uint8_t *buf = (uint8_t *)malloc((size_t)stride * (size_t)sw->height);
+    int stride = dst_w * 4;
+    uint8_t *buf = (uint8_t *)malloc((size_t)stride * (size_t)dst_h);
     if (!buf) {
         if (tmp)
             av_frame_free(&tmp);
@@ -232,8 +266,8 @@ static int to_rgb(WallDecoder *d, AVFrame *src, WallRgbFrame *out) {
     sws_scale(d->sws, (const uint8_t *const *)sw->data, sw->linesize, 0, sw->height, dst_slices,
               dst_stride);
     out->data = buf;
-    out->width = sw->width;
-    out->height = sw->height;
+    out->width = dst_w;
+    out->height = dst_h;
     out->stride = stride;
     if (tmp)
         av_frame_free(&tmp);

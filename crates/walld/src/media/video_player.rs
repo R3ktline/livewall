@@ -51,6 +51,9 @@ extern "C" {
     fn wall_decoder_is_hw(d: *const WallDecoder) -> i32;
     fn wall_decoder_fps(d: *const WallDecoder) -> f32;
     fn wall_decoder_warning(d: *const WallDecoder) -> *const libc::c_char;
+    fn wall_decoder_set_target_size(d: *mut WallDecoder, w: i32, h: i32);
+    fn wall_decoder_width(d: *const WallDecoder) -> i32;
+    fn wall_decoder_height(d: *const WallDecoder) -> i32;
     fn wall_decoder_seek_start(d: *mut WallDecoder) -> i32;
     fn wall_decoder_next(
         d: *mut WallDecoder,
@@ -65,6 +68,9 @@ pub struct VideoPlayerConfig {
     pub hwdec: HwDecPreference,
     pub efficiency_mode: bool,
     pub max_fps: u32,
+    /// Scale decoded frames down to this size (0 = native).
+    pub target_w: u32,
+    pub target_h: u32,
 }
 
 pub struct VideoPlayer {
@@ -115,6 +121,18 @@ impl VideoPlayer {
         };
         if dec.is_null() {
             bail!("failed to open video decoder for {}", path.display());
+        }
+
+        if cfg.target_w > 0 && cfg.target_h > 0 {
+            let src_w = unsafe { wall_decoder_width(dec) } as u32;
+            let src_h = unsafe { wall_decoder_height(dec) } as u32;
+            // Only downscale — never upscale past source.
+            let tw = cfg.target_w.min(src_w.max(1));
+            let th = cfg.target_h.min(src_h.max(1));
+            if tw < src_w || th < src_h {
+                unsafe { wall_decoder_set_target_size(dec, tw as i32, th as i32) };
+                tracing::info!(tw, th, src_w, src_h, "decode target size set");
+            }
         }
 
         let is_hw = unsafe { wall_decoder_is_hw(dec) } != 0;
@@ -235,19 +253,16 @@ impl VideoPlayer {
                 if rgb.data.is_null() {
                     bail!("null rgb frame");
                 }
-                let len = (rgb.stride * rgb.height) as usize;
-                let slice = unsafe { std::slice::from_raw_parts(rgb.data, len) };
-                // Pack RGB24 rows (stride may equal width*3)
                 let w = rgb.width as u32;
                 let h = rgb.height as u32;
-                let mut packed = vec![0u8; (w * h * 3) as usize];
-                for y in 0..h as usize {
-                    let src = &slice[y * rgb.stride as usize..y * rgb.stride as usize + w as usize * 3];
-                    packed[y * w as usize * 3..(y + 1) * w as usize * 3].copy_from_slice(src);
-                }
+                let stride = rgb.stride as u32;
+                let len = (rgb.stride * rgb.height) as usize;
+                let slice = unsafe { std::slice::from_raw_parts(rgb.data, len) };
+                // Decoder emits BGR0 / XRGB8888 already — take bytes, free C buffer.
+                let mut pixels = Vec::with_capacity(len);
+                pixels.extend_from_slice(slice);
                 unsafe { wall_rgb_free(&mut rgb) };
-                let frame = Frame::from_rgb8(w, h, &packed);
-                // Keep VaapiDmabuf label when hybrid uses HW decode + SHM present
+                let frame = Frame::from_xrgb8(w, h, stride, pixels);
                 Ok(Some((frame, self.pace())))
             }
             2 => {

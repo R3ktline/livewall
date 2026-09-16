@@ -47,6 +47,16 @@ impl Frame {
         }
     }
 
+    /// Take ownership of tightly packed XRGB8888 / BGR0 pixels (little-endian).
+    pub fn from_xrgb8(width: u32, height: u32, stride: u32, pixels: Vec<u8>) -> Self {
+        Frame::Shm {
+            width,
+            height,
+            stride,
+            pixels,
+        }
+    }
+
     /// Build an XRGB8888 SHM frame from tightly packed RGB8.
     pub fn from_rgb8(width: u32, height: u32, rgb: &[u8]) -> Self {
         let stride = width * 4;
