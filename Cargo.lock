@@ -446,6 +446,59 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
+name = "livewall"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "bytes",
+ "calloop 0.14.4",
+ "calloop-wayland-source",
+ "cc",
+ "clap",
+ "image",
+ "libc",
+ "livewall-core",
+ "memmap2 0.9.11",
+ "pkg-config",
+ "rustix 0.38.44",
+ "serde",
+ "serde_json",
+ "smithay-client-toolkit",
+ "thiserror 2.0.20",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-protocols",
+ "wayland-protocols-wlr",
+]
+
+[[package]]
+name = "livewall-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "directories",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "toml",
+]
+
+[[package]]
+name = "livewallctl"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "livewall-core",
+ "serde_json",
+]
+
+[[package]]
 name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1050,59 +1103,6 @@ name = "valuable"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
-
-[[package]]
-name = "wall-core"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "directories",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "toml",
-]
-
-[[package]]
-name = "wallctl"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "serde_json",
- "wall-core",
-]
-
-[[package]]
-name = "walld"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "bytes",
- "calloop 0.14.4",
- "calloop-wayland-source",
- "cc",
- "clap",
- "image",
- "libc",
- "memmap2 0.9.11",
- "pkg-config",
- "rustix 0.38.44",
- "serde",
- "serde_json",
- "smithay-client-toolkit",
- "thiserror 2.0.20",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber",
- "wall-core",
- "wayland-backend",
- "wayland-client",
- "wayland-protocols",
- "wayland-protocols-wlr",
-]
 
 [[package]]
 name = "wasi"

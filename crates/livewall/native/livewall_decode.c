@@ -13,7 +13,7 @@
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
 
-typedef struct WallDecoder {
+typedef struct LivewallDecoder {
     AVFormatContext *fmt;
     AVCodecContext *codec;
     AVBufferRef *hw_device_ctx;
@@ -27,29 +27,29 @@ typedef struct WallDecoder {
     int target_w;
     int target_h;
     char warning[256];
-} WallDecoder;
+} LivewallDecoder;
 
-typedef struct WallRgbFrame {
+typedef struct LivewallRgbFrame {
     uint8_t *data;
     int width;
     int height;
     int stride;
-} WallRgbFrame;
+} LivewallRgbFrame;
 
-typedef struct WallDmabufPlane {
+typedef struct LivewallDmabufPlane {
     int fd;
     uint32_t offset;
     uint32_t stride;
-} WallDmabufPlane;
+} LivewallDmabufPlane;
 
-typedef struct WallDmabufFrame {
+typedef struct LivewallDmabufFrame {
     uint32_t width;
     uint32_t height;
     uint32_t format;
     uint64_t modifier;
     int nb_planes;
-    WallDmabufPlane planes[4];
-} WallDmabufFrame;
+    LivewallDmabufPlane planes[4];
+} LivewallDmabufFrame;
 
 static enum AVPixelFormat get_vaapi_format(AVCodecContext *ctx, const enum AVPixelFormat *pix_fmts) {
     (void)ctx;
@@ -61,9 +61,9 @@ static enum AVPixelFormat get_vaapi_format(AVCodecContext *ctx, const enum AVPix
     return pix_fmts[0];
 }
 
-WallDecoder *wall_decoder_open(const char *path, const char *vaapi_device, int want_hw, int efficiency,
+LivewallDecoder *livewall_decoder_open(const char *path, const char *vaapi_device, int want_hw, int efficiency,
                                int force_rgb) {
-    WallDecoder *d = calloc(1, sizeof(*d));
+    LivewallDecoder *d = calloc(1, sizeof(*d));
     if (!d)
         return NULL;
 
@@ -148,12 +148,12 @@ fail:
     return NULL;
 }
 
-int wall_decoder_is_hw(const WallDecoder *d) { return d && d->hw_vaapi; }
-float wall_decoder_fps(const WallDecoder *d) { return d ? d->fps : 0.0f; }
-int wall_decoder_width(const WallDecoder *d) { return d ? d->width : 0; }
-int wall_decoder_height(const WallDecoder *d) { return d ? d->height : 0; }
+int livewall_decoder_is_hw(const LivewallDecoder *d) { return d && d->hw_vaapi; }
+float livewall_decoder_fps(const LivewallDecoder *d) { return d ? d->fps : 0.0f; }
+int livewall_decoder_width(const LivewallDecoder *d) { return d ? d->width : 0; }
+int livewall_decoder_height(const LivewallDecoder *d) { return d ? d->height : 0; }
 
-void wall_decoder_set_target_size(WallDecoder *d, int w, int h) {
+void livewall_decoder_set_target_size(LivewallDecoder *d, int w, int h) {
     if (!d)
         return;
     if (w < 16)
@@ -174,11 +174,11 @@ void wall_decoder_set_target_size(WallDecoder *d, int w, int h) {
         }
     }
 }
-const char *wall_decoder_warning(const WallDecoder *d) {
+const char *livewall_decoder_warning(const LivewallDecoder *d) {
     return (d && d->warning[0]) ? d->warning : NULL;
 }
 
-int wall_decoder_seek_start(WallDecoder *d) {
+int livewall_decoder_seek_start(LivewallDecoder *d) {
     if (!d)
         return -1;
     int ret = avformat_seek_file(d->fmt, -1, INT64_MIN, 0, INT64_MAX, AVSEEK_FLAG_BACKWARD);
@@ -186,7 +186,7 @@ int wall_decoder_seek_start(WallDecoder *d) {
     return ret;
 }
 
-static int export_drm(AVFrame *frame, WallDmabufFrame *out) {
+static int export_drm(AVFrame *frame, LivewallDmabufFrame *out) {
     AVFrame *mapped = av_frame_alloc();
     if (!mapped)
         return -1;
@@ -223,7 +223,7 @@ static int export_drm(AVFrame *frame, WallDmabufFrame *out) {
     return 0;
 }
 
-static int to_rgb(WallDecoder *d, AVFrame *src, WallRgbFrame *out) {
+static int to_rgb(LivewallDecoder *d, AVFrame *src, LivewallRgbFrame *out) {
     AVFrame *sw = src;
     AVFrame *tmp = NULL;
     if (src->format == AV_PIX_FMT_VAAPI || src->format == AV_PIX_FMT_DRM_PRIME) {
@@ -275,7 +275,7 @@ static int to_rgb(WallDecoder *d, AVFrame *src, WallRgbFrame *out) {
 }
 
 /* returns: 1=rgb, 2=dmabuf, 0=eof, -1=error */
-int wall_decoder_next(WallDecoder *d, WallRgbFrame *rgb, WallDmabufFrame *dma) {
+int livewall_decoder_next(LivewallDecoder *d, LivewallRgbFrame *rgb, LivewallDmabufFrame *dma) {
     if (!d)
         return -1;
     AVPacket *pkt = av_packet_alloc();
@@ -349,14 +349,14 @@ int wall_decoder_next(WallDecoder *d, WallRgbFrame *rgb, WallDmabufFrame *dma) {
     return result;
 }
 
-void wall_rgb_free(WallRgbFrame *f) {
+void livewall_rgb_free(LivewallRgbFrame *f) {
     if (f && f->data) {
         free(f->data);
         f->data = NULL;
     }
 }
 
-void wall_dmabuf_close(WallDmabufFrame *f) {
+void livewall_dmabuf_close(LivewallDmabufFrame *f) {
     if (!f)
         return;
     for (int i = 0; i < f->nb_planes && i < 4; i++) {
@@ -367,7 +367,7 @@ void wall_dmabuf_close(WallDmabufFrame *f) {
     }
 }
 
-void wall_decoder_free(WallDecoder *d) {
+void livewall_decoder_free(LivewallDecoder *d) {
     if (!d)
         return;
     if (d->sws)

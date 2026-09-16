@@ -1,4 +1,4 @@
-//! livewall wallpaper daemon (`walld`).
+//! livewall wallpaper daemon (`livewall`).
 
 mod app;
 mod ipc_server;
@@ -13,12 +13,12 @@ use std::sync::Arc;
 use anyhow::Result;
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
-use wall_core::load_config;
+use livewall_core::load_config;
 
 use crate::app::App;
 
 #[derive(Parser, Debug)]
-#[command(name = "walld", about = "Efficient Wayland video/image wallpaper daemon")]
+#[command(name = "livewall", about = "Efficient Wayland video/image wallpaper daemon")]
 struct Args {
     /// Override config path
     #[arg(long)]
@@ -40,9 +40,9 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
     let filter = if args.verbose {
-        EnvFilter::new("walld=debug,info")
+        EnvFilter::new("livewall=debug,info")
     } else {
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("walld=info,warn"))
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("livewall=info,warn"))
     };
     tracing_subscriber::fmt().with_env_filter(filter).init();
 
@@ -53,7 +53,7 @@ fn main() -> Result<()> {
         load_config().unwrap_or_default()
     };
 
-    if let Some(pref) = wall_core::HwDecPreference::parse(&args.hwdec) {
+    if let Some(pref) = livewall_core::HwDecPreference::parse(&args.hwdec) {
         cfg.hwdec = pref;
     }
     if args.efficiency_mode {
@@ -66,7 +66,7 @@ fn main() -> Result<()> {
     tracing::info!(
         hwdec = cfg.hwdec.as_str(),
         efficiency = cfg.efficiency_mode,
-        "starting walld"
+        "starting livewall"
     );
 
     let cfg = Arc::new(std::sync::RwLock::new(cfg));

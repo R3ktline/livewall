@@ -1,5 +1,5 @@
 [package]
-name = "wall-core"
+name = "livewall-core"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

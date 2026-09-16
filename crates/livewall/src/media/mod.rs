@@ -14,7 +14,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
-use wall_core::{HwDecPreference, WallpaperKind};
+use livewall_core::{HwDecPreference, WallpaperKind};
 
 /// Shared handle the Wayland thread pulls frames from.
 #[derive(Clone, Default)]
@@ -134,7 +134,7 @@ pub fn spawn_player(
     let path = path.to_path_buf();
 
     let join = std::thread::Builder::new()
-        .name("walld-media".into())
+        .name("livewall-media".into())
         .spawn(move || {
             let res = match kind {
                 WallpaperKind::Image | WallpaperKind::AnimatedImage => {

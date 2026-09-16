@@ -7,13 +7,13 @@ use std::ptr;
 use std::time::{Duration, Instant};
 
 use anyhow::{bail, Result};
-use wall_core::HwDecPreference;
+use livewall_core::HwDecPreference;
 
 use super::frame::{DecodePath, DmabufFrame, DmabufPlane, Frame};
 use super::GpuPolicy;
 
 #[repr(C)]
-struct WallRgbFrame {
+struct LivewallRgbFrame {
     data: *mut u8,
     width: i32,
     height: i32,
@@ -37,31 +37,31 @@ struct WallDmabufFrameC {
     planes: [WallDmabufPlaneC; 4],
 }
 
-enum WallDecoder {}
+enum LivewallDecoder {}
 
 extern "C" {
-    fn wall_decoder_open(
+    fn livewall_decoder_open(
         path: *const libc::c_char,
         vaapi_device: *const libc::c_char,
         want_hw: i32,
         efficiency: i32,
         force_rgb: i32,
-    ) -> *mut WallDecoder;
-    fn wall_decoder_free(d: *mut WallDecoder);
-    fn wall_decoder_is_hw(d: *const WallDecoder) -> i32;
-    fn wall_decoder_fps(d: *const WallDecoder) -> f32;
-    fn wall_decoder_warning(d: *const WallDecoder) -> *const libc::c_char;
-    fn wall_decoder_set_target_size(d: *mut WallDecoder, w: i32, h: i32);
-    fn wall_decoder_width(d: *const WallDecoder) -> i32;
-    fn wall_decoder_height(d: *const WallDecoder) -> i32;
-    fn wall_decoder_seek_start(d: *mut WallDecoder) -> i32;
-    fn wall_decoder_next(
-        d: *mut WallDecoder,
-        rgb: *mut WallRgbFrame,
+    ) -> *mut LivewallDecoder;
+    fn livewall_decoder_free(d: *mut LivewallDecoder);
+    fn livewall_decoder_is_hw(d: *const LivewallDecoder) -> i32;
+    fn livewall_decoder_fps(d: *const LivewallDecoder) -> f32;
+    fn livewall_decoder_warning(d: *const LivewallDecoder) -> *const libc::c_char;
+    fn livewall_decoder_set_target_size(d: *mut LivewallDecoder, w: i32, h: i32);
+    fn livewall_decoder_width(d: *const LivewallDecoder) -> i32;
+    fn livewall_decoder_height(d: *const LivewallDecoder) -> i32;
+    fn livewall_decoder_seek_start(d: *mut LivewallDecoder) -> i32;
+    fn livewall_decoder_next(
+        d: *mut LivewallDecoder,
+        rgb: *mut LivewallRgbFrame,
         dma: *mut WallDmabufFrameC,
     ) -> i32;
-    fn wall_rgb_free(f: *mut WallRgbFrame);
-    fn wall_dmabuf_close(f: *mut WallDmabufFrameC);
+    fn livewall_rgb_free(f: *mut LivewallRgbFrame);
+    fn livewall_dmabuf_close(f: *mut WallDmabufFrameC);
 }
 
 pub struct VideoPlayerConfig {
@@ -74,7 +74,7 @@ pub struct VideoPlayerConfig {
 }
 
 pub struct VideoPlayer {
-    dec: *mut WallDecoder,
+    dec: *mut LivewallDecoder,
     decode_path: DecodePath,
     warning: Option<String>,
     fps: f32,
@@ -105,10 +105,10 @@ impl VideoPlayer {
             bail!("efficiency_mode forbids software decode");
         }
 
-        let force_rgb = GpuPolicy::is_hybrid() || std::env::var_os("WALLD_FORCE_SHM").is_some();
+        let force_rgb = GpuPolicy::is_hybrid() || std::env::var_os("LIVEWALL_FORCE_SHM").is_some();
 
         let dec = unsafe {
-            wall_decoder_open(
+            livewall_decoder_open(
                 path_c.as_ptr(),
                 device
                     .as_ref()
@@ -124,20 +124,20 @@ impl VideoPlayer {
         }
 
         if cfg.target_w > 0 && cfg.target_h > 0 {
-            let src_w = unsafe { wall_decoder_width(dec) } as u32;
-            let src_h = unsafe { wall_decoder_height(dec) } as u32;
+            let src_w = unsafe { livewall_decoder_width(dec) } as u32;
+            let src_h = unsafe { livewall_decoder_height(dec) } as u32;
             // Only downscale — never upscale past source.
             let tw = cfg.target_w.min(src_w.max(1));
             let th = cfg.target_h.min(src_h.max(1));
             if tw < src_w || th < src_h {
-                unsafe { wall_decoder_set_target_size(dec, tw as i32, th as i32) };
+                unsafe { livewall_decoder_set_target_size(dec, tw as i32, th as i32) };
                 tracing::info!(tw, th, src_w, src_h, "decode target size set");
             }
         }
 
-        let is_hw = unsafe { wall_decoder_is_hw(dec) } != 0;
-        let fps = unsafe { wall_decoder_fps(dec) }.max(1.0);
-        let warn_ptr = unsafe { wall_decoder_warning(dec) };
+        let is_hw = unsafe { livewall_decoder_is_hw(dec) } != 0;
+        let fps = unsafe { livewall_decoder_fps(dec) }.max(1.0);
+        let warn_ptr = unsafe { livewall_decoder_warning(dec) };
         let mut warning = if warn_ptr.is_null() {
             None
         } else {
@@ -159,7 +159,7 @@ impl VideoPlayer {
             DecodePath::VaapiDmabuf
         } else {
             if cfg.efficiency_mode {
-                unsafe { wall_decoder_free(dec) };
+                unsafe { livewall_decoder_free(dec) };
                 bail!("efficiency_mode requires VA-API; hardware decode unavailable");
             }
             DecodePath::Soft
@@ -200,7 +200,7 @@ impl VideoPlayer {
     }
 
     pub fn seek_start(&mut self) -> Result<()> {
-        let ret = unsafe { wall_decoder_seek_start(self.dec) };
+        let ret = unsafe { livewall_decoder_seek_start(self.dec) };
         if ret < 0 {
             bail!("seek failed ({ret})");
         }
@@ -209,7 +209,7 @@ impl VideoPlayer {
     }
 
     pub fn next_frame(&mut self) -> Result<Option<(Frame, Duration)>> {
-        let mut rgb = WallRgbFrame {
+        let mut rgb = LivewallRgbFrame {
             data: ptr::null_mut(),
             width: 0,
             height: 0,
@@ -245,7 +245,7 @@ impl VideoPlayer {
             ],
         };
 
-        let code = unsafe { wall_decoder_next(self.dec, &mut rgb, &mut dma) };
+        let code = unsafe { livewall_decoder_next(self.dec, &mut rgb, &mut dma) };
         match code {
             0 => Ok(None),
             -1 => bail!("decode error"),
@@ -261,7 +261,7 @@ impl VideoPlayer {
                 // Decoder emits BGR0 / XRGB8888 already — take bytes, free C buffer.
                 let mut pixels = Vec::with_capacity(len);
                 pixels.extend_from_slice(slice);
-                unsafe { wall_rgb_free(&mut rgb) };
+                unsafe { livewall_rgb_free(&mut rgb) };
                 let frame = Frame::from_xrgb8(w, h, stride, pixels);
                 Ok(Some((frame, self.pace())))
             }
@@ -290,7 +290,7 @@ impl VideoPlayer {
                     modifier: dma.modifier,
                     planes,
                 });
-                unsafe { wall_dmabuf_close(&mut dma) };
+                unsafe { livewall_dmabuf_close(&mut dma) };
                 self.decode_path = DecodePath::VaapiDmabuf;
                 Ok(Some((frame, self.pace())))
             }
@@ -320,7 +320,7 @@ impl VideoPlayer {
 impl Drop for VideoPlayer {
     fn drop(&mut self) {
         if !self.dec.is_null() {
-            unsafe { wall_decoder_free(self.dec) };
+            unsafe { livewall_decoder_free(self.dec) };
             self.dec = ptr::null_mut();
         }
     }

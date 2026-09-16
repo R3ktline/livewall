@@ -1,5 +1,5 @@
-# livewall / walld example config
-# Copy to ~/.config/walld/config.toml
+# livewall example config
+# Copy to ~/.config/livewall/config.toml
 
 default_path = "/home/USER/Pictures/wallpaper.jpg"
 default_mode = "fill"
@@ -13,7 +13,7 @@ on_dpms = true
 on_fullscreen = true
 half_fps_on_battery = true
 
-# Per-output overrides (names from `wallctl status`)
+# Per-output overrides (names from `livewallctl status`)
 # [outputs.eDP-1]
 # path = "/home/USER/Videos/loop.mp4"
 # mode = "fill"

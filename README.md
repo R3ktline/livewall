@@ -11,9 +11,9 @@ Efficient Wayland wallpaper daemon written in Rust. Plays high-quality video and
 - Per-output wallpapers and scale modes (`fill` / `fit` / `stretch` / `center`)
 - Zero-copy **DMA-BUF** present when the GPU/compositor allow it
 - **Hybrid GPU** safe path (Intel + NVIDIA): VA-API decode + SHM present so dGPU-wired HDMI works
-- Daemon + CLI (`walld` / `wallctl`), Unix-socket IPC
+- Daemon + CLI (`livewall` / `livewallctl`), Unix-socket IPC
 - Pause on Hyprland fullscreen (best-effort), optional battery FPS cap
-- Config at `~/.config/walld/config.toml`
+- Config at `~/.config/livewall/config.toml`
 
 ## Build
 
@@ -24,23 +24,23 @@ sudo pacman -S --needed rust ffmpeg libva mesa wayland wayland-protocols pkgconf
 ```
 
 ```bash
-cargo build --release -p walld -p wallctl
-install -Dm755 target/release/walld  ~/.local/bin/walld
-install -Dm755 target/release/wallctl ~/.local/bin/wallctl
+cargo build --release -p livewall -p livewallctl
+install -Dm755 target/release/livewall  ~/.local/bin/livewall
+install -Dm755 target/release/livewallctl ~/.local/bin/livewallctl
 ```
 
 ## Usage
 
 ```bash
 # start daemon (or enable the systemd user unit — see below)
-walld &
+livewall &
 
-wallctl set ALL ~/Videos/loop.mp4 --mode fill
-wallctl set eDP-1 ~/Pictures/wall.png --mode fill
-wallctl status
-wallctl pause
-wallctl resume
-wallctl shutdown
+livewallctl set ALL ~/Videos/loop.mp4 --mode fill
+livewallctl set eDP-1 ~/Pictures/wall.png --mode fill
+livewallctl status
+livewallctl pause
+livewallctl resume
+livewallctl shutdown
 ```
 
 Example config: [`config/config.example.toml`](config/config.example.toml)
@@ -48,14 +48,14 @@ Example config: [`config/config.example.toml`](config/config.example.toml)
 ### systemd (user)
 
 ```bash
-# ~/.config/systemd/user/walld.service
+# ~/.config/systemd/user/livewall.service
 [Unit]
 Description=livewall Wayland wallpaper daemon
 PartOf=graphical-session.target
 After=graphical-session.target
 
 [Service]
-ExecStart=%h/.local/bin/walld --hwdec auto
+ExecStart=%h/.local/bin/livewall --hwdec auto
 Restart=on-failure
 
 [Install]
@@ -63,7 +63,7 @@ WantedBy=graphical-session.target
 ```
 
 ```bash
-systemctl --user enable --now walld.service
+systemctl --user enable --now livewall.service
 ```
 
 ### niri
@@ -84,10 +84,10 @@ More compositor notes: [`docs/compositors.md`](docs/compositors.md)
 | Path | When |
 |------|------|
 | VA-API → DMA-BUF | Single-GPU, compositor accepts the buffer |
-| VA-API → SHM | Hybrid Intel/NVIDIA (or `WALLD_FORCE_SHM=1`) |
+| VA-API → SHM | Hybrid Intel/NVIDIA (or `LIVEWALL_FORCE_SHM=1`) |
 | Software decode | VA-API unavailable (warning logged) |
 
-Override render node: `WALLD_RENDER_NODE=/dev/dri/renderD129`
+Override render node: `LIVEWALL_RENDER_NODE=/dev/dri/renderD129`
 
 `efficiency_mode = true` in config (or `--efficiency-mode`) refuses software fallback.
 
@@ -95,11 +95,11 @@ Override render node: `WALLD_RENDER_NODE=/dev/dri/renderD129`
 
 | Crate | Role |
 |-------|------|
-| `walld` | Daemon (Wayland + decode) |
-| `wallctl` | CLI |
-| `wall-core` | Shared config + IPC types |
+| `livewall` | Daemon (Wayland + decode) |
+| `livewallctl` | CLI |
+| `livewall-core` | Shared config + IPC types |
 
-Native FFmpeg bridge: `crates/walld/native/wall_decode.c`
+Native FFmpeg bridge: `crates/livewall/native/wall_decode.c`
 
 ## License
 

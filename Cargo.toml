@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/wall-core",
-    "crates/walld",
-    "crates/wallctl",
+    "crates/livewall-core",
+    "crates/livewall",
+    "crates/livewallctl",
 ]
 
 [workspace.package]
@@ -14,7 +14,7 @@ authors = ["r3ktline"]
 repository = "https://github.com/r3ktline/livewall"
 
 [workspace.dependencies]
-wall-core = { path = "crates/wall-core" }
+livewall-core = { path = "crates/livewall-core" }
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }

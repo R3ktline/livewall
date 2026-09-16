@@ -67,7 +67,7 @@ pub struct OutputConfig {
 }
 
 pub fn config_dir() -> Result<PathBuf> {
-    let dirs = ProjectDirs::from("dev", "livewall", "walld")
+    let dirs = ProjectDirs::from("dev", "livewall", "livewall")
         .context("could not resolve config directory")?;
     Ok(dirs.config_dir().to_path_buf())
 }

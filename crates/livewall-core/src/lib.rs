@@ -9,7 +9,7 @@ pub use ipc::{read_message, write_message, IpcError, Request, Response, StatusIn
 pub use types::{HwDecPreference, ScaleMode, WallpaperKind};
 
 /// Default Unix socket name under `$XDG_RUNTIME_DIR`.
-pub const SOCKET_NAME: &str = "walld.sock";
+pub const SOCKET_NAME: &str = "livewall.sock";
 
 /// Resolve the IPC socket path.
 pub fn socket_path() -> std::path::PathBuf {

@@ -15,7 +15,7 @@ pub struct GpuPolicy {
 impl GpuPolicy {
     pub fn from_env() -> Self {
         let mut p = Self::default();
-        if let Ok(node) = std::env::var("WALLD_RENDER_NODE") {
+        if let Ok(node) = std::env::var("LIVEWALL_RENDER_NODE") {
             p.render_node = Some(PathBuf::from(node));
         }
         p

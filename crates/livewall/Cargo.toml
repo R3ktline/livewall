@@ -1,16 +1,16 @@
 [package]
-name = "walld"
+name = "livewall"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "Efficient Wayland wallpaper daemon (livewall)"
+description = "Efficient Wayland wallpaper daemon"
 
 [[bin]]
-name = "walld"
+name = "livewall"
 path = "src/main.rs"
 
 [dependencies]
-wall-core.workspace = true
+livewall-core.workspace = true
 anyhow.workspace = true
 bytes.workspace = true
 clap.workspace = true

@@ -1,6 +1,6 @@
 fn main() {
     let mut build = cc::Build::new();
-    build.file("native/wall_decode.c");
+    build.file("native/livewall_decode.c");
     build.include("native");
 
     for lib in ["libavformat", "libavcodec", "libavutil", "libswscale"] {
@@ -17,8 +17,8 @@ fn main() {
     }
 
     build.warnings(false);
-    build.compile("wall_decode");
+    build.compile("livewall_decode");
 
-    println!("cargo:rerun-if-changed=native/wall_decode.c");
-    println!("cargo:rerun-if-changed=native/wall_decode.h");
+    println!("cargo:rerun-if-changed=native/livewall_decode.c");
+    println!("cargo:rerun-if-changed=native/livewall_decode.h");
 }

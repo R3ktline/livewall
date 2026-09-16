@@ -6,12 +6,12 @@ use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use clap::{Parser, Subcommand};
-use wall_core::{
+use livewall_core::{
     read_message, socket_path, write_message, HwDecPreference, Request, Response, ScaleMode,
 };
 
 #[derive(Parser, Debug)]
-#[command(name = "wallctl", about = "Control the livewall wallpaper daemon")]
+#[command(name = "livewallctl", about = "Control the livewall wallpaper daemon")]
 struct Cli {
     #[command(subcommand)]
     cmd: Cmd,
@@ -61,7 +61,7 @@ fn parse_hwdec(s: &str) -> Result<HwDecPreference, String> {
 fn connect() -> Result<UnixStream> {
     let path = socket_path();
     let stream = UnixStream::connect(&path)
-        .with_context(|| format!("connecting to {} (is walld running?)", path.display()))?;
+        .with_context(|| format!("connecting to {} (is livewall running?)", path.display()))?;
     stream.set_read_timeout(Some(Duration::from_secs(10)))?;
     stream.set_write_timeout(Some(Duration::from_secs(10)))?;
     Ok(stream)

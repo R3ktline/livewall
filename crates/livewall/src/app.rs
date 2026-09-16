@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use tokio::net::UnixListener;
-use wall_core::{
+use livewall_core::{
     read_message, socket_path, write_message, Config, Request, Response, ScaleMode, StatusInfo,
 };
 

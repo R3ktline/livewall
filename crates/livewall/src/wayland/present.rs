@@ -26,7 +26,7 @@ pub struct ShmPool {
 impl ShmPool {
     pub fn create(shm: &WlShm, qh: &QueueHandle<AppData>, size: usize) -> Result<Self> {
         let fd = rustix::fs::memfd_create(
-            "walld-shm",
+            "livewall-shm",
             rustix::fs::MemfdFlags::CLOEXEC | rustix::fs::MemfdFlags::ALLOW_SEALING,
         )?;
         rustix::fs::ftruncate(&fd, size as u64)?;
@@ -73,7 +73,7 @@ pub fn present_frame(
     frame: &Frame,
     out_w: u32,
     out_h: u32,
-    scale_mode: wall_core::ScaleMode,
+    scale_mode: livewall_core::ScaleMode,
     pools: &mut Vec<ShmPool>,
 ) -> Result<()> {
     let (src_w, src_h) = (frame.width(), frame.height());
@@ -115,22 +115,22 @@ pub fn apply_viewport(
     src_h: u32,
     out_w: u32,
     out_h: u32,
-    mode: wall_core::ScaleMode,
+    mode: livewall_core::ScaleMode,
 ) {
     let Some(vp) = viewport else { return };
     vp.set_destination(out_w as i32, out_h as i32);
 
     let (crop_x, crop_y, crop_w, crop_h) = match mode {
-        wall_core::ScaleMode::Stretch => (0.0, 0.0, src_w as f64, src_h as f64),
-        wall_core::ScaleMode::Center => {
+        livewall_core::ScaleMode::Stretch => (0.0, 0.0, src_w as f64, src_h as f64),
+        livewall_core::ScaleMode::Center => {
             let w = (src_w.min(out_w)) as f64;
             let h = (src_h.min(out_h)) as f64;
             let x = ((src_w as f64) - w) / 2.0;
             let y = ((src_h as f64) - h) / 2.0;
             (x, y, w, h)
         }
-        wall_core::ScaleMode::Fit => (0.0, 0.0, src_w as f64, src_h as f64),
-        wall_core::ScaleMode::Fill => {
+        livewall_core::ScaleMode::Fit => (0.0, 0.0, src_w as f64, src_h as f64),
+        livewall_core::ScaleMode::Fill => {
             let src_a = src_w as f64 / src_h as f64;
             let out_a = out_w as f64 / out_h as f64;
             if src_a > out_a {

@@ -1,16 +1,16 @@
 [package]
-name = "wallctl"
+name = "livewallctl"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "CLI control client for livewall (walld)"
+description = "CLI control client for livewall"
 
 [[bin]]
-name = "wallctl"
+name = "livewallctl"
 path = "src/main.rs"
 
 [dependencies]
-wall-core.workspace = true
+livewall-core.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 serde_json.workspace = true

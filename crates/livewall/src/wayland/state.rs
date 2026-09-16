@@ -27,7 +27,7 @@ use wayland_client::{Connection, Proxy, QueueHandle};
 use wayland_protocols::wp::linux_dmabuf::zv1::client::zwp_linux_dmabuf_v1::ZwpLinuxDmabufV1;
 use wayland_protocols::wp::viewporter::client::wp_viewporter::WpViewporter;
 use wayland_protocols::wp::viewporter::client::wp_viewport::WpViewport;
-use wall_core::{OutputStatus, ScaleMode, WallpaperKind};
+use livewall_core::{OutputStatus, ScaleMode, WallpaperKind};
 
 use crate::media::{Frame, MediaSlot};
 use crate::wayland::present::{apply_viewport as apply_viewport_pub, present_frame, ShmPool};
@@ -199,7 +199,7 @@ impl AppData {
                 } else {
                     vec![output]
                 };
-                let kind = wall_core::WallpaperKind::from_path(&path);
+                let kind = livewall_core::WallpaperKind::from_path(&path);
                 for name in targets {
                     if let Some(surf) = self.surfaces.get_mut(&name) {
                         surf.mode = mode;
@@ -219,7 +219,7 @@ impl AppData {
         let names: Vec<String> = self.surfaces.keys().cloned().collect();
 
         // Gather outputs that share the same slot and have a new frame.
-        let mut batch: Vec<(String, u32, u32, wall_core::ScaleMode, MediaSlot, bool)> = Vec::new();
+        let mut batch: Vec<(String, u32, u32, livewall_core::ScaleMode, MediaSlot, bool)> = Vec::new();
         let mut shared_frame: Option<std::sync::Arc<crate::media::Frame>> = None;
 
         for name in &names {
@@ -243,7 +243,7 @@ impl AppData {
         }
 
         // Advance gens and pick one frame (all outputs with same slot share it)
-        let mut to_present: Vec<(String, u32, u32, wall_core::ScaleMode, bool)> = Vec::new();
+        let mut to_present: Vec<(String, u32, u32, livewall_core::ScaleMode, bool)> = Vec::new();
         for (name, w, h, mode, slot, has_vp) in batch {
             let surf = self.surfaces.get_mut(&name).unwrap();
             if let Some(frame) = slot.frame_if_newer(&mut surf.last_frame_gen) {
@@ -697,7 +697,7 @@ pub fn spawn_wayland() -> Result<(WaylandHandle, std::thread::JoinHandle<Result<
     let status_c = status.clone();
     let exit_c = exit.clone();
     let join = std::thread::Builder::new()
-        .name("walld-wayland".into())
+        .name("livewall-wayland".into())
         .spawn(move || run_wayland(rx, status_c, exit_c))?;
     Ok((
         WaylandHandle { tx, outputs: status },
