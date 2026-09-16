@@ -7,7 +7,8 @@ use std::time::Duration;
 use anyhow::{bail, Context, Result};
 use tokio::net::UnixListener;
 use livewall_core::{
-    read_message, socket_path, write_message, Config, Request, Response, ScaleMode, StatusInfo,
+    read_message, socket_path, write_message, Config, OutputConfig, Request, Response, ScaleMode,
+    StatusInfo,
 };
 
 use crate::media::{self, DecodePath, MediaSlot, PlayerHandle};
@@ -20,6 +21,9 @@ pub struct App {
     wayland: WaylandHandle,
     players: Mutex<HashMap<String, PlayerHandle>>,
     slots: Mutex<HashMap<String, MediaSlot>>,
+    /// Authoritative current assignment per output, updated synchronously on
+    /// `set`/`clear` so `status` never lags behind the Wayland present thread.
+    current: Mutex<HashMap<String, (PathBuf, ScaleMode)>>,
     paused: Arc<AtomicBool>,
     auto_paused: AtomicBool,
     decode_path: Mutex<DecodePath>,
@@ -36,6 +40,7 @@ impl App {
             wayland,
             players: Mutex::new(HashMap::new()),
             slots: Mutex::new(HashMap::new()),
+            current: Mutex::new(HashMap::new()),
             paused: Arc::new(AtomicBool::new(false)),
             auto_paused: AtomicBool::new(false),
             decode_path: Mutex::new(DecodePath::None),
@@ -163,6 +168,15 @@ impl App {
             self.cfg.write().unwrap().default_path = Some(path.clone());
             self.cfg.write().unwrap().default_mode = mode;
             bail!("no outputs yet; saved as default and will apply shortly");
+        }
+
+        // Record the assignment authoritatively so `status` reflects it
+        // immediately, without waiting for the Wayland present thread.
+        {
+            let mut current = self.current.lock().unwrap();
+            for name in &targets {
+                current.insert(name.clone(), (path.clone(), mode));
+            }
         }
 
         // One shared player/slot when ALL and same file — share slot across outputs
@@ -305,12 +319,15 @@ impl App {
                 {
                     let mut players = self.players.lock().unwrap();
                     let mut slots = self.slots.lock().unwrap();
+                    let mut current = self.current.lock().unwrap();
                     if output.eq_ignore_ascii_case("ALL") {
                         players.clear();
                         slots.clear();
+                        current.clear();
                     } else {
                         players.remove(&output);
                         slots.remove(&output);
+                        current.remove(&output);
                     }
                 }
                 let _ = self.wayland.tx.send(WaylandCmd::Clear { output });
@@ -318,9 +335,34 @@ impl App {
                     message: Some("cleared".into()),
                 }
             }
-            Request::Set { output, path, mode } => match self.set_wallpaper(&output, path, mode) {
-                Ok(()) => Response::Ok {
-                    message: Some("ok".into()),
+            Request::Set {
+                output,
+                path,
+                mode,
+                save,
+            } => match self.set_wallpaper(&output, path.clone(), mode) {
+                Ok(()) => {
+                    let mut message = String::from("ok");
+                    if save {
+                        match self.persist_assignment(&output, &path, mode) {
+                            Ok(p) => message = format!("ok (saved to {})", p.display()),
+                            Err(e) => {
+                                tracing::warn!(error = %e, "failed to persist config");
+                                message = format!("ok (warning: could not save config: {e})");
+                            }
+                        }
+                    }
+                    Response::Ok {
+                        message: Some(message),
+                    }
+                }
+                Err(e) => Response::Error {
+                    message: format!("{e:#}"),
+                },
+            },
+            Request::Save => match self.persist_current() {
+                Ok((path, n)) => Response::Ok {
+                    message: Some(format!("saved {n} output(s) to {}", path.display())),
                 },
                 Err(e) => Response::Error {
                     message: format!("{e:#}"),
@@ -330,9 +372,74 @@ impl App {
         }
     }
 
+    /// Persist a single `set` assignment to the config file so it is restored
+    /// on the next daemon start.
+    fn persist_assignment(
+        &self,
+        output: &str,
+        path: &std::path::Path,
+        mode: Option<ScaleMode>,
+    ) -> Result<std::path::PathBuf> {
+        {
+            let mut cfg = self.cfg.write().unwrap();
+            if output.eq_ignore_ascii_case("ALL") {
+                cfg.default_path = Some(path.to_path_buf());
+                if let Some(m) = mode {
+                    cfg.default_mode = m;
+                }
+                // Per-output overrides would shadow the new default; drop stale ones.
+                cfg.outputs.clear();
+            } else {
+                cfg.outputs.insert(
+                    output.to_string(),
+                    OutputConfig {
+                        path: Some(path.to_path_buf()),
+                        mode,
+                    },
+                );
+            }
+            livewall_core::save_config(&cfg)?;
+        }
+        livewall_core::config_path()
+    }
+
+    /// Persist whatever is currently displayed (across all outputs) to config.
+    fn persist_current(&self) -> Result<(std::path::PathBuf, usize)> {
+        let current = self.current.lock().unwrap().clone();
+        let mut n = 0;
+        {
+            let mut cfg = self.cfg.write().unwrap();
+            for (name, (path, mode)) in &current {
+                cfg.outputs.insert(
+                    name.clone(),
+                    OutputConfig {
+                        path: Some(path.clone()),
+                        mode: Some(*mode),
+                    },
+                );
+                n += 1;
+            }
+            livewall_core::save_config(&cfg)?;
+        }
+        Ok((livewall_core::config_path()?, n))
+    }
+
     fn status_info(&self) -> StatusInfo {
         let cfg = self.cfg.read().unwrap().clone();
-        let outputs = self.wayland.outputs.lock().unwrap().clone();
+        let mut outputs = self.wayland.outputs.lock().unwrap().clone();
+
+        // Overlay the authoritative current assignment so a freshly-set
+        // wallpaper is reflected before the present thread republishes status.
+        {
+            let current = self.current.lock().unwrap();
+            for o in &mut outputs {
+                if let Some((path, mode)) = current.get(&o.name) {
+                    o.path = Some(path.clone());
+                    o.mode = *mode;
+                    o.kind = Some(livewall_core::WallpaperKind::from_path(path));
+                }
+            }
+        }
 
         let (decode_path, warning, fps) = {
             let slots = self.slots.lock().unwrap();
