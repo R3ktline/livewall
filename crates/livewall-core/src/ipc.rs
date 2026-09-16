@@ -26,6 +26,10 @@ pub enum Request {
         output: String,
         path: PathBuf,
         mode: Option<ScaleMode>,
+        /// Persist this assignment to the config file so it is restored on the
+        /// next daemon start.
+        #[serde(default)]
+        save: bool,
     },
     Clear {
         output: String,
@@ -34,6 +38,8 @@ pub enum Request {
     Resume,
     Status,
     Shutdown,
+    /// Persist the currently displayed wallpapers to the config file.
+    Save,
     SetHwdec {
         hwdec: HwDecPreference,
     },

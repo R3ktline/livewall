@@ -206,6 +206,10 @@ impl AppData {
                         surf.path = Some(path.clone());
                         surf.kind = Some(kind);
                         surf.slot = Some(slot.clone());
+                        // New slots restart their frame generation at 1, so reset
+                        // the per-surface counter or the first frame of the new
+                        // wallpaper is treated as stale and never presented.
+                        surf.last_frame_gen = 0;
                     } else {
                         tracing::warn!(output = %name, "unknown output");
                     }

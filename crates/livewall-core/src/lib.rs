@@ -4,7 +4,7 @@ mod config;
 mod ipc;
 mod types;
 
-pub use config::{load_config, save_config, Config, OutputConfig, PauseRules};
+pub use config::{config_path, load_config, save_config, Config, OutputConfig, PauseRules};
 pub use ipc::{read_message, write_message, IpcError, Request, Response, StatusInfo, OutputStatus};
 pub use types::{HwDecPreference, ScaleMode, WallpaperKind};
 
