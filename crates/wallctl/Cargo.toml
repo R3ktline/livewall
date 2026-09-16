@@ -1,0 +1,16 @@
+[package]
+name = "wallctl"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "CLI control client for livewall (walld)"
+
+[[bin]]
+name = "wallctl"
+path = "src/main.rs"
+
+[dependencies]
+wall-core.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+serde_json.workspace = true

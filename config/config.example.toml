@@ -1,0 +1,19 @@
+# livewall / walld example config
+# Copy to ~/.config/walld/config.toml
+
+default_path = "/home/USER/Pictures/wallpaper.jpg"
+default_mode = "fill"
+hwdec = "auto"          # auto | vaapi | vulkan | soft
+mute = true
+efficiency_mode = false # if true, refuse soft decode fallback
+max_fps = 0             # 0 = uncapped (follow source / refresh)
+
+[pause]
+on_dpms = true
+on_fullscreen = true
+half_fps_on_battery = true
+
+# Per-output overrides (names from `wallctl status`)
+# [outputs.eDP-1]
+# path = "/home/USER/Videos/loop.mp4"
+# mode = "fill"

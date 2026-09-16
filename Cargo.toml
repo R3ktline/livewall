@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/wall-core",
+    "crates/walld",
+    "crates/wallctl",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["r3ktline"]
+repository = "https://github.com/r3ktline/livewall"
+
+[workspace.dependencies]
+wall-core = { path = "crates/wall-core" }
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util", "sync", "time", "signal", "fs"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+toml = "0.8"
+directories = "5"
+bytes = "1"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
